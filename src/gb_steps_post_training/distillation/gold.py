@@ -534,9 +534,17 @@ if __name__ == "__main__":
     dataset_tmpdir = [None]
 
     def _load_dataset():
+        from datasets import load_from_disk
+        # Pre-tokenized dataset dir (save_to_disk from a prior --prep_only run): load directly. The
+        # tokenizer step short-circuits because _prepare_dataset_with_original_text returns as-is when
+        # `input_ids` is already a column -> no long rank-0 tokenize, no ddp_timeout. Also sidesteps the
+        # pd.read_json ujson "Value is too big!" overflow on corpora with bare >2^64 integer literals.
+        if os.path.isdir(script_args.dataset_name) and (
+                os.path.exists(os.path.join(script_args.dataset_name, "dataset_info.json"))
+                or os.path.exists(os.path.join(script_args.dataset_name, "state.json"))):
+            return DatasetDict({"train": load_from_disk(script_args.dataset_name)})
         if script_args.dataset_name.endswith(".json") or script_args.dataset_name.endswith(".jsonl"):
             import pandas as pd
-            from datasets import load_from_disk
 
             dataset_tmpdir[0] = os.path.join(training_args.output_dir, ".tmp_dataset")
 

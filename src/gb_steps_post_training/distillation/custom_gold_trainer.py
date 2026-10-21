@@ -2433,6 +2433,12 @@ class CustomGOLDTrainer(GOLDTrainer):
         """
         Prepare dataset while preserving original text for cross-tokenizer distillation.
         """
+        # Pre-tokenized dataset (produced by gold.py --prep_only + save_to_disk / load_from_disk):
+        # it already carries `input_ids`, so skip the entire tokenize .map chain and return as-is.
+        # This removes the long single-process rank-0 tokenize from the distributed job (the step that
+        # otherwise overruns ddp_timeout on ~1M-row datasets).
+        if isinstance(dataset, Dataset) and "input_ids" in dataset.column_names:
+            return dataset
         # Build the kwargs for the `map` function
         map_kwargs = {}
         if isinstance(dataset, Dataset):  # IterableDataset does not support num_proc
